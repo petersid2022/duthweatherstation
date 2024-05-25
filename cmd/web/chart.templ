@@ -2,11 +2,11 @@ package web
 
 templ Chart() {
 	@Base() {
-		<div id="chart"></div>
+		<div id="chart" class="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-4 justify-items-center"></div>
 		<script>
 			const margin = { top: 20, right: 30, bottom: 40, left: 40 };
-			const width = 500 - margin.left - margin.right;
-			const height = 300 - margin.top - margin.bottom;
+			const width = 750 - margin.left - margin.right;
+			const height = 450 - margin.top - margin.bottom;
 
 			const createChart = (data, xField, yField, svgSelector, legendText) => {
 				const svg = d3.select(svgSelector).append("svg")
