@@ -1,0 +1,97 @@
+package web
+
+templ Chart() {
+	@Base() {
+		<div id="chart"></div>
+		<script>
+			const margin = { top: 20, right: 30, bottom: 40, left: 40 };
+			const width = 500 - margin.left - margin.right;
+			const height = 300 - margin.top - margin.bottom;
+
+			const createChart = (data, xField, yField, svgSelector, legendText) => {
+				const svg = d3.select(svgSelector).append("svg")
+					.attr("width", width + margin.left + margin.right)
+					.attr("height", height + margin.top + margin.bottom)
+					.append("g")
+					.attr("transform", `translate(${margin.left},${margin.top})`);
+
+				const parseTime = d3.isoParse;
+
+				data.forEach(d => {
+					d.timestamp = parseTime(d.timestamp);
+					d[xField] = +d[xField];
+				});
+
+				const x = d3.scaleTime()
+					.domain(d3.extent(data, d => d.timestamp))
+					.range([0, width]);
+
+				const y = d3.scaleLinear()
+					.domain([0, d3.max(data, d => d[yField])]).nice()
+					.range([height, 0]);
+
+        const xAxis = g => g
+          .attr("transform", `translate(0,${height})`)
+          .call(d3.axisBottom(x).ticks(Math.max(width / 80, 2)));
+
+        const yAxis = g => g
+          .call(d3.axisLeft(y));
+
+				svg.append("path")
+					.datum(data)
+					.attr("fill", "none")
+					.attr("stroke", "steelblue")
+					.attr("stroke-width", 1.5)
+					.attr("d", d3.line()
+						.x(d => x(d.timestamp))
+						.y(d => y(d[yField]))
+					);
+
+				svg.append("g")
+					.call(xAxis);
+
+				svg.append("g")
+					.call(yAxis);
+
+				// Add legend
+				svg.append("g")
+					.attr("class", "legend")
+					.attr("transform", `translate(${width - 50},${margin.top})`)
+					.append("text")
+					.attr("x", 0)
+					.attr("y", 0)
+					.attr("dy", ".35em")
+					.style("text-anchor", "start")
+					.text(legendText);
+
+				svg.select(".legend")
+					.append("rect")
+					.attr("x", -20)
+					.attr("width", 12)
+					.attr("height", 12)
+					.attr("fill", "steelblue")
+					.attr("stroke", "steelblue");
+			};
+
+      const fetchAndCreateChart = (url, xField, yField, svgSelector, legendText) => {
+          fetch(url, {
+              method: 'GET',
+              headers: {
+                  'Content-Type': 'application/json',
+              }
+          })
+          .then(response => response.json())
+          .then(data => createChart(data, xField, yField, svgSelector, legendText))
+          .catch(error => {
+              document.querySelector(svgSelector).innerHTML = "Error loading chart.";
+              console.error('Error fetching chart data:', error);
+          });
+      };
+
+			fetchAndCreateChart('/api/data?sensor=dht11', 'timestamp', 'temperature', '#chart', 'Temperature');
+			fetchAndCreateChart('/api/data?sensor=dht11', 'timestamp', 'humidity', '#chart', 'Humidity');
+			fetchAndCreateChart('/api/data?sensor=bmp180', 'timestamp', 'pressure', '#chart', 'Pressure');
+			fetchAndCreateChart('/api/data?sensor=mq135', 'timestamp', 'gas_level', '#chart', 'Gas Level');
+		</script>
+	}
+}

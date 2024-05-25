@@ -6,22 +6,24 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/joho/godotenv/autoload"
 )
 
-// Service represents a service that interacts with a database.
-type Service interface {
-	// Health returns a map of health status information.
-	// The keys and values in the map are service-specific.
-	Health() map[string]string
+type SensorData struct {
+	Timestamp   time.Time `json:"timestamp"`
+	Temperature float64   `json:"temperature,omitempty"`
+	Humidity    float64   `json:"humidity,omitempty"`
+	GasLevel    float64   `json:"gas_level,omitempty"`
+	Pressure    float64   `json:"pressure,omitempty"`
+}
 
-	// Close terminates the database connection.
-	// It returns an error if the connection cannot be closed.
+type Service interface {
 	Close() error
+	StoreSensorData(sensor string, data SensorData) error
+	GetSensorData(sensor string) ([]SensorData, error)
 }
 
 type service struct {
@@ -38,16 +40,12 @@ var (
 )
 
 func New() Service {
-	// Reuse Connection
 	if dbInstance != nil {
 		return dbInstance
 	}
 
-	// Opening a driver typically will not attempt to connect to the database.
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, host, port, dbname))
 	if err != nil {
-		// This will not be a connection error, but a DSN parse error or
-		// another initialization error.
 		log.Fatal(err)
 	}
 	db.SetConnMaxLifetime(0)
@@ -60,61 +58,111 @@ func New() Service {
 	return dbInstance
 }
 
-// Health checks the health of the database connection by pinging the database.
-// It returns a map with keys indicating various health statistics.
-func (s *service) Health() map[string]string {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	stats := make(map[string]string)
-
-	// Ping the database
-	err := s.db.PingContext(ctx)
-	if err != nil {
-		stats["status"] = "down"
-		stats["error"] = fmt.Sprintf("db down: %v", err)
-		log.Fatalf(fmt.Sprintf("db down: %v", err)) // Log the error and terminate the program
-		return stats
-	}
-
-	// Database is up, add more statistics
-	stats["status"] = "up"
-	stats["message"] = "It's healthy"
-
-	// Get database stats (like open connections, in use, idle, etc.)
-	dbStats := s.db.Stats()
-	stats["open_connections"] = strconv.Itoa(dbStats.OpenConnections)
-	stats["in_use"] = strconv.Itoa(dbStats.InUse)
-	stats["idle"] = strconv.Itoa(dbStats.Idle)
-	stats["wait_count"] = strconv.FormatInt(dbStats.WaitCount, 10)
-	stats["wait_duration"] = dbStats.WaitDuration.String()
-	stats["max_idle_closed"] = strconv.FormatInt(dbStats.MaxIdleClosed, 10)
-	stats["max_lifetime_closed"] = strconv.FormatInt(dbStats.MaxLifetimeClosed, 10)
-
-	// Evaluate stats to provide a health message
-	if dbStats.OpenConnections > 40 { // Assuming 50 is the max for this example
-		stats["message"] = "The database is experiencing heavy load."
-	}
-	if dbStats.WaitCount > 1000 {
-		stats["message"] = "The database has a high number of wait events, indicating potential bottlenecks."
-	}
-
-	if dbStats.MaxIdleClosed > int64(dbStats.OpenConnections)/2 {
-		stats["message"] = "Many idle connections are being closed, consider revising the connection pool settings."
-	}
-
-	if dbStats.MaxLifetimeClosed > int64(dbStats.OpenConnections)/2 {
-		stats["message"] = "Many connections are being closed due to max lifetime, consider increasing max lifetime or revising the connection usage pattern."
-	}
-
-	return stats
-}
-
-// Close closes the database connection.
-// It logs a message indicating the disconnection from the specific database.
-// If the connection is successfully closed, it returns nil.
-// If an error occurs while closing the connection, it returns the error.
 func (s *service) Close() error {
 	log.Printf("Disconnected from database: %s", dbname)
 	return s.db.Close()
+}
+
+func (s *service) StoreSensorData(sensor string, data SensorData) error {
+	var insertQuery string
+	var err error
+
+	switch sensor {
+	case "dht11":
+		insertQuery = `
+			INSERT INTO dht11_data (record_datetime, temperature, humidity) 
+			VALUES (NOW(), ?, ?)
+		`
+		_, err = s.db.ExecContext(context.Background(), insertQuery, data.Temperature, data.Humidity)
+	case "mq135":
+		insertQuery = `
+			INSERT INTO mq135_data (record_datetime, gas_level) 
+			VALUES (NOW(), ?)
+		`
+		_, err = s.db.ExecContext(context.Background(), insertQuery, data.GasLevel)
+	case "bmp180":
+		insertQuery = `
+			INSERT INTO bmp180_data (record_datetime, pressure) 
+			VALUES (NOW(), ?)
+		`
+		_, err = s.db.ExecContext(context.Background(), insertQuery, data.Pressure)
+	default:
+		return fmt.Errorf("unknown sensor type: %s", sensor)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to insert %s sensor data: %v", sensor, err)
+	}
+
+	return nil
+}
+
+func (s *service) GetSensorData(sensor string) ([]SensorData, error) {
+	var sensorDataList []SensorData
+
+	queries := map[string]string{
+		"dht11": `
+			SELECT record_datetime, temperature, humidity
+			FROM dht11_data
+			ORDER BY record_datetime DESC
+		`,
+		"mq135": `
+			SELECT record_datetime, gas_level
+			FROM mq135_data
+			ORDER BY record_datetime DESC
+		`,
+		"bmp180": `
+			SELECT record_datetime, pressure
+			FROM bmp180_data
+			ORDER BY record_datetime DESC
+		`,
+	}
+
+	query, ok := queries[sensor]
+	if !ok {
+		return nil, fmt.Errorf("unknown sensor type: %s", sensor)
+	}
+
+	rows, err := s.db.QueryContext(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch %s sensor data: %v", sensor, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var sensorData SensorData
+		var recordDatetime []byte
+
+		switch sensor {
+		case "dht11":
+			err = rows.Scan(&recordDatetime, &sensorData.Temperature, &sensorData.Humidity)
+			if err != nil {
+				return nil, fmt.Errorf("failed to scan row for %s: %v", sensor, err)
+			}
+		case "mq135":
+			err = rows.Scan(&recordDatetime, &sensorData.GasLevel)
+			if err != nil {
+				return nil, fmt.Errorf("failed to scan row for %s: %v", sensor, err)
+			}
+		case "bmp180":
+			err = rows.Scan(&recordDatetime, &sensorData.Pressure)
+			if err != nil {
+				return nil, fmt.Errorf("failed to scan row for %s: %v", sensor, err)
+			}
+		}
+
+		// Convert recordDatetime to time.Time
+		sensorData.Timestamp, err = time.Parse("2006-01-02 15:04:05", string(recordDatetime))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse datetime for %s: %v", sensor, err)
+		}
+
+		sensorDataList = append(sensorDataList, sensorData)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during iteration for %s: %v", sensor, err)
+	}
+
+	return sensorDataList, nil
 }

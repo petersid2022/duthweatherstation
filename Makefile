@@ -30,11 +30,6 @@ docker-down:
 		docker-compose down; \
 	fi
 
-# Test the application
-test:
-	@echo "Testing..."
-	@go test ./tests -v
-
 # Clean the binary
 clean:
 	@echo "Cleaning..."
