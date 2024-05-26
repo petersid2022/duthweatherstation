@@ -8,6 +8,14 @@ templ Chart() {
 			<div id="chart-pressure" class="w-full"></div>
 			<div id="chart-airquality" class="w-full"></div>
 		</div>
+		<div id="last-timestamp-container" class="flex justify-between items-center w-full">
+			<div class="ml-4">
+				<p>&copy; 2024 Peter Sideris and Fotis Mitsis</p>
+			</div>
+			<div id="last-timestamp" class="mr-4">
+				<span>Last updated at: </span><span id="timestamp-value"></span>
+			</div>
+		</div>
 		<script>
             const margin = { top: 20, right: 40, bottom: 40, left: 40 };
             const width = 750 - margin.left - margin.right;
@@ -89,7 +97,11 @@ templ Chart() {
                     }
                 })
                 .then(response => response.json())
-                .then(data => createChart(data, xField, yField, svgSelector, legendText))
+                .then(data => {
+                    createChart(data, xField, yField, svgSelector, legendText);
+                    const lastTimestamp = data[0].timestamp;
+                    document.getElementById('timestamp-value').textContent = new Date(lastTimestamp).toLocaleString();
+                })
                 .catch(error => {
                     document.querySelector(svgSelector).innerHTML = "Error loading chart.";
                     console.error('Error fetching chart data:', error);
