@@ -21,7 +21,7 @@ Adafruit_BMP085 bmp;
 const char *ssid = "tzampa";
 const char *password = "geiasoupetro";
 const char *serverName = "https://duthweatherstation.fly.dev/api/add";
-const char* ntpServer = "pool.ntp.org";
+const char *ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 7200;
 const int   daylightOffset_sec = 3600;
 
@@ -61,7 +61,6 @@ const char* rootCACertificate = \
 String printLocalTime() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
-    // Serial.println("Failed to obtain time");
     return "";
   }
 
@@ -76,7 +75,6 @@ String printLocalTime() {
 }
 
 void setup() {
-  // Serial.begin(115200);
   lcd.begin(16, 2);
   lcd.clear();
   digitalWrite(LCD_BACKLIGHT, HIGH);
@@ -92,30 +90,23 @@ void setup() {
   pinMode(LCD_BACKLIGHT, OUTPUT);
 
   // Connect to WiFi
-  // Serial.print("Attempting to connect to SSID: ");
-  // Serial.println(ssid);
   WiFi.begin(ssid, password);
 
-  // attempt to connect to Wifi network:
   while (WiFi.status() != WL_CONNECTED) {
-    // Serial.print(".");
     delay(1000);
   }
 
-  // Serial.print("Connected to ");
-  // Serial.println(ssid);
-  // Serial.println(WiFi.localIP());
   lcd.setCursor(0, 0);
   lcd.print("Connected to");
   lcd.setCursor(0, 1);
   lcd.print(ssid);
 
-  // Init and get the time
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   printLocalTime();
 }
 
 void loop() {
+  digitalWrite(LCD_BACKLIGHT, HIGH);
   lcd.clear();
   // Read values from sensors
   int ad_value = analogRead(GAS_AIN);
@@ -177,15 +168,13 @@ void loop() {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Sending data...");
-    
+
     client->setCACert(rootCACertificate);
 
     HTTPClient https;
 
-    // Serial.print("[HTTPS] begin...\n");
     if (https.begin(*client, serverName)) {
-      // Serial.print("[HTTPS] POST...\n");
-
+      
       // Create JSON payload for DHT11
       String payload_dht11 = "{";
       payload_dht11 += "\"SensorName\":\"dht11\",";
@@ -194,19 +183,12 @@ void loop() {
       payload_dht11 += "\"temperature\":" + String(t) + ",";
       payload_dht11 += "\"humidity\":" + String(h);
       payload_dht11 += "}}";
-      // Serial.println("Sending DHT11 data: " + payload_dht11);
 
-      // start connection and send HTTP header
       int httpCode = https.POST(payload_dht11);
 
-      // httpCode will be negative on error
       if (httpCode > 0) {
-        // Serial.printf("[HTTPS] POST... code: %d\n", httpCode);
-        // file found at server
         if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
-          // print server response payload
           String payload_dht11 = https.getString();
-          // Serial.println(payload_dht11);
         }
       }
 
@@ -217,19 +199,12 @@ void loop() {
       payload_bmp180 += "\"timestamp\":\"" + printLocalTime() + "\",";
       payload_bmp180 += "\"pressure\":" + String(p);
       payload_bmp180 += "}}";
-      // Serial.println("Sending BMP180 data: " + payload_bmp180);
-
-      // start connection and send HTTP header
+      
       httpCode = https.POST(payload_bmp180);
 
-      // httpCode will be negative on error
       if (httpCode > 0) {
-        // Serial.printf("[HTTPS] POST... code: %d\n", httpCode);
-        // file found at server
         if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
-          // print server response payload
           String payload_bmp180 = https.getString();
-          // Serial.println(payload_bmp180);
         }
       }
 
@@ -240,19 +215,12 @@ void loop() {
       payload_mq135 += "\"timestamp\":\"" + printLocalTime() + "\",";
       payload_mq135 += "\"gas_level\":" + String(ad_value);
       payload_mq135 += "}}";
-      // Serial.println("Sending MQ135 data: " + payload_mq135 );
 
-      // start connection and send HTTP header
       httpCode = https.POST(payload_mq135);
 
-      // httpCode will be negative on error
       if (httpCode > 0) {
-        // Serial.printf("[HTTPS] POST... code: %d\n", httpCode);
-        // file found at server
         if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
-          // print server response payload
           String payload_mq135 = https.getString();
-          // Serial.println(payload_mq135);
         }
       }
 
@@ -262,13 +230,8 @@ void loop() {
       delay(1000);
       lcd.clear();
     }
-    // else {
-    //   Serial.printf("[HTTPS] Unable to connect\n");
-    // }
   }
-  // else {
-  //   Serial.printf("[HTTPS] Unable to create client\n");
-  // }
-
-  // digitalWrite(LCD_BACKLIGHT, LOW);
+  
+  digitalWrite(LCD_BACKLIGHT, LOW);
+  delay(300000); // Wait 5 minutes
 }
