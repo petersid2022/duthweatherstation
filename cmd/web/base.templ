@@ -5,6 +5,7 @@ templ Base() {
 	<html lang="en">
 		<head>
 			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<meta http-equiv="refresh" content="120"/>
 			<title>DUTh Weather Station</title>
 			<script src="assets/js/htmx.min.js"></script>
@@ -12,13 +13,13 @@ templ Base() {
 			<script src="https://cdn.tailwindcss.com"></script>
 		</head>
 		<body>
+			<div class="text-4xl leading-none tracking-tight text-gray-900 text-center">
+				<h1 class="inline">DUTh Weather Station</h1>
+				<p class="inline ml-4 text-base">&copy; Peter Sideris and Fotis Mitsis</p>
+			</div>
 			<main>
 				{ children... }
 			</main>
-			<footer class="text-center mx-2">
-				<p>(c) Peter Sideris</p>
-				<p>and Fotis Mitsis</p>
-			</footer>
 		</body>
 	</html>
 }
