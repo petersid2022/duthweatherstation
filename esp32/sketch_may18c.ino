@@ -12,9 +12,9 @@
 #define GAS_AIN A0
 #define BUZZER_PIN D13
 #define LCD_BACKLIGHT A4
+#define PUSH_BUTTON_PIN 1
 
-// ( RS, EN, D4, D5, D6, D7 )
-LiquidCrystal lcd(26, 2, 17, 14, 13, 25);
+LiquidCrystal lcd(26, 2, 17, 14, 13, 25); // ( RS, EN, D4, D5, D6, D7 )
 DHT dht(DHTPIN, DHTTYPE);
 Adafruit_BMP085 bmp;
 
@@ -24,6 +24,17 @@ const char *serverName = "https://duthweatherstation.fly.dev/api/add";
 const char *ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 7200;
 const int   daylightOffset_sec = 3600;
+int buttonState = 0;
+bool lcdBacklightOn = true;
+int ad_value;
+float h, t, p;
+unsigned long lastDataSentTime = 0;
+const unsigned long sendDataInterval = 5 * 60 * 1000; // 5 minutes in milliseconds
+volatile bool buttonPressed = false;
+
+void handleButtonPress() {
+  buttonPressed = true;
+}
 
 const char* rootCACertificate = \
                                 "-----BEGIN CERTIFICATE-----\n" \
@@ -77,27 +88,34 @@ String printLocalTime() {
 void setup() {
   lcd.begin(16, 2);
   lcd.clear();
-  digitalWrite(LCD_BACKLIGHT, HIGH);
   dht.begin();
-
   if (!bmp.begin()) {
     while (1) {}
   }
 
   pinMode(GAS_DIN, INPUT);
   pinMode(GAS_AIN, INPUT);
+  pinMode(PUSH_BUTTON_PIN, INPUT);
+  attachInterrupt(digitalPinToInterrupt(PUSH_BUTTON_PIN), handleButtonPress, FALLING);
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(LCD_BACKLIGHT, OUTPUT);
+  digitalWrite(LCD_BACKLIGHT, HIGH);
 
   // Connect to WiFi
   WiFi.begin(ssid, password);
+
+  lcd.setCursor(0, 0);
+  lcd.print("Connecting to");
+  lcd.setCursor(0, 1);
+  lcd.print("wifi");
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
   }
 
+  lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Connected to");
+  lcd.print("Connected to:");
   lcd.setCursor(0, 1);
   lcd.print(ssid);
 
@@ -105,17 +123,12 @@ void setup() {
   printLocalTime();
 }
 
-void loop() {
-  digitalWrite(LCD_BACKLIGHT, HIGH);
+void DisplaySensorData(int ad_value, float h, float t, float p) {
+  // Clear the LCD
   lcd.clear();
-  // Read values from sensors
-  int ad_value = analogRead(GAS_AIN);
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
-  float p = bmp.readPressure() / 100.0;
 
-  if (ad_value >= 1800) {
-    while (ad_value >= 1800) {
+  if (ad_value >= 2000) {
+    while (ad_value >= 2000) {
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("DANGER! Gas");
@@ -162,19 +175,21 @@ void loop() {
   lcd.print(p);
   lcd.print(" hPa");
   delay(2000);
+}
 
+void sendData(int ad_value, float h, float t, float p) {
   WiFiClientSecure *client = new WiFiClientSecure;
   if (client) {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Sending data...");
+    lcd.print("Uploading data...");
 
     client->setCACert(rootCACertificate);
 
     HTTPClient https;
 
     if (https.begin(*client, serverName)) {
-      
+
       // Create JSON payload for DHT11
       String payload_dht11 = "{";
       payload_dht11 += "\"SensorName\":\"dht11\",";
@@ -199,7 +214,7 @@ void loop() {
       payload_bmp180 += "\"timestamp\":\"" + printLocalTime() + "\",";
       payload_bmp180 += "\"pressure\":" + String(p);
       payload_bmp180 += "}}";
-      
+
       httpCode = https.POST(payload_bmp180);
 
       if (httpCode > 0) {
@@ -231,7 +246,41 @@ void loop() {
       lcd.clear();
     }
   }
-  
-  digitalWrite(LCD_BACKLIGHT, LOW);
-  delay(300000); // Wait 5 minutes
+}
+
+void loop() {
+  if (buttonPressed) {
+    // Handle button press
+    // For example, toggle LCD backlight
+    digitalWrite(LCD_BACKLIGHT, !digitalRead(LCD_BACKLIGHT));
+    
+    // Reset buttonPressed flag
+    buttonPressed = false;
+  }
+
+  unsigned long currentTime = millis();
+
+  // Check if it's time to send data
+  if (currentTime - lastDataSentTime >= sendDataInterval) {
+    // Update the last sent time
+    lastDataSentTime = currentTime;
+
+    // Perform tasks to send data
+    ad_value = analogRead(GAS_AIN);
+    h = dht.readHumidity();
+    t = dht.readTemperature();
+    p = bmp.readPressure() / 100.0;
+
+    // Send sensor data
+    sendData(ad_value, h, t, p);
+  } else {
+    // If it's not time to send data, display sensor data
+    ad_value = analogRead(GAS_AIN);
+    h = dht.readHumidity();
+    t = dht.readTemperature();
+    p = bmp.readPressure() / 100.0;
+
+    // Display sensor data
+    DisplaySensorData(ad_value, h, t, p);
+  }
 }
