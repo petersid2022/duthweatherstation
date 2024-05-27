@@ -52,6 +52,20 @@ templ Chart() {
                 const yAxis = g => g
                     .call(d3.axisLeft(y));
 
+                svg.selectAll("line.horizontalGrid")
+                    .data(y.ticks(4))
+                    .enter()
+                    .append("line")
+                    .attr("class", "horizontalGrid")
+                    .attr("x1", 0)
+                    .attr("x2", width)
+                    .attr("y1", d => y(d))
+                    .attr("y2", d => y(d))
+                    .attr("fill", "none")
+                    .attr("shape-rendering", "crispEdges")
+                    .attr("stroke", "black")
+                    .attr("stroke-width", "1px");
+
                 svg.append("path")
                     .datum(data)
                     .attr("fill", "none")
@@ -68,16 +82,18 @@ templ Chart() {
                 svg.append("g")
                     .call(yAxis);
 
-                // Add legend
-                svg.append("g")
+                const lastValue = data[0][yField];
+
+                const legend = svg.append("g")
                     .attr("class", "legend")
-                    .attr("transform", `translate(${width - 50},${margin.top})`)
-                    .append("text")
+                    .attr("transform", `translate(${width - 50},${margin.top})`);
+
+                legend.append("text")
                     .attr("x", -20)
                     .attr("y", -20)
                     .attr("dy", ".35em")
                     .style("text-anchor", "start")
-                    .text(legendText);
+                    .text(`${legendText}: ${lastValue}`);
 
                 svg.select(".legend")
                     .append("rect")
