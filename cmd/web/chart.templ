@@ -29,31 +29,31 @@ templ Chart() {
                     .attr("preserveAspectRatio", "xMidYMid meet")
                     .append("g")
                     .attr("transform", `translate(${margin.left},${margin.top})`);
-
+            
                 const parseTime = d3.isoParse;
-
+            
                 data.forEach(d => {
                     d.timestamp = parseTime(d.timestamp);
                     d[xField] = +d[xField];
                 });
-
+            
                 const x = d3.scaleTime()
                     .domain(d3.extent(data, d => d.timestamp))
                     .range([0, width]);
 
                 const y = d3.scaleLinear()
-                    .domain([0, d3.max(data, d => d[yField])]).nice()
+                    .domain([d3.min(data, d => d[yField]), d3.max(data, d => d[yField])]).nice()
                     .range([height, 0]);
-
+            
                 const xAxis = g => g
                     .attr("transform", `translate(0,${height})`)
                     .call(d3.axisBottom(x).ticks(Math.max(width / 80, 2)));
-
+            
                 const yAxis = g => g
                     .call(d3.axisLeft(y));
-
+            
                 svg.selectAll("line.horizontalGrid")
-                    .data(y.ticks(4))
+                    .data(y.ticks(Math.max(height / 80, 2)))
                     .enter()
                     .append("line")
                     .attr("class", "horizontalGrid")
@@ -63,9 +63,23 @@ templ Chart() {
                     .attr("y2", d => y(d))
                     .attr("fill", "none")
                     .attr("shape-rendering", "crispEdges")
-                    .attr("stroke", "black")
+                    .attr("stroke", "lightgray")
                     .attr("stroke-width", "1px");
 
+                svg.selectAll("line.verticalGrid")
+                    .data(x.ticks(Math.max(width / 80, 2)))
+                    .enter()
+                    .append("line")
+                    .attr("class", "verticalGrid")
+                    .attr("x1", d => x(d))
+                    .attr("x2", d => x(d))
+                    .attr("y1", 0)
+                    .attr("y2", height)
+                    .attr("fill", "none")
+                    .attr("shape-rendering", "crispEdges")
+                    .attr("stroke", "lightgray")
+                    .attr("stroke-width", "1px");
+            
                 svg.append("path")
                     .datum(data)
                     .attr("fill", "none")
@@ -75,34 +89,33 @@ templ Chart() {
                         .x(d => x(d.timestamp))
                         .y(d => y(d[yField]))
                     );
-
+            
                 svg.append("g")
                     .call(xAxis);
-
+            
                 svg.append("g")
                     .call(yAxis);
-
+            
                 const lastValue = data[0][yField];
-
+            
                 const legend = svg.append("g")
                     .attr("class", "legend")
-                    .attr("transform", `translate(${width - 50},${margin.top})`);
+                    .attr("transform", `translate(${width / 2},${margin.top})`);
 
-                legend.append("text")
-                    .attr("x", -580)
-                    .attr("y", -20)
-                    .attr("dy", ".35em")
-                    .style("text-anchor", "start")
-                    .text(`${legendText}: ${lastValue}`);
-
-                svg.select(".legend")
-                    .append("rect")
-                    .attr("x", -600)
-                    .attr("y", -25)
+                legend.append("rect")
+                    .attr("x", -70)
+                    .attr("y", -35)
                     .attr("width", 12)
                     .attr("height", 12)
                     .attr("fill", "steelblue")
                     .attr("stroke", "steelblue");
+                
+                legend.append("text")
+                    .attr("x", -50)
+                    .attr("y", -30)
+                    .attr("dy", ".35em")
+                    .style("text-anchor", "start")
+                    .text(`${legendText}: ${lastValue}`);
             };
 
             const fetchAndCreateChart = (url, xField, yField, svgSelector, legendText) => {
