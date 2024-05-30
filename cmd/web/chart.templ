@@ -44,7 +44,7 @@ templ Chart() {
         const y = d3.scaleLinear()
           //.domain([0, d3.max(data, d => d[yField])])
           //.range([height, 0]);
-          .domain([d3.min(data, d => d[yField]), d3.max(data, d => d[yField])]).nice()
+          .domain([d3.min(data, d => d[yField] * 0.9999), d3.max(data, d => d[yField]) * 1.0001]).nice()
           .range([height, 0]);
 
         const xAxis = g => g
