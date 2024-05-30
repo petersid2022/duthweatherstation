@@ -5,6 +5,7 @@
 #include <Adafruit_BMP085.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <Ticker.h>
 
 #define DHTPIN D11
 #define DHTTYPE DHT11
@@ -18,22 +19,33 @@ LiquidCrystal lcd(26, 2, 17, 14, 13, 25); // ( RS, EN, D4, D5, D6, D7 )
 DHT dht(DHTPIN, DHTTYPE);
 Adafruit_BMP085 bmp;
 
+// const char *ssid = "POCO X3 Pro";
+// const char *password = "12345678910";
 const char *ssid = "tzampa";
 const char *password = "geiasoupetro";
 const char *serverName = "https://duthweatherstation.fly.dev/api/add";
 const char *ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 7200;
 const int   daylightOffset_sec = 3600;
-int buttonState = 0;
-bool lcdBacklightOn = true;
 int ad_value;
 float h, t, p;
 unsigned long lastDataSentTime = 0;
-const unsigned long sendDataInterval = 5 * 60 * 1000; // 5 minutes in milliseconds
-volatile bool buttonPressed = false;
+const unsigned long sendDataInterval = 2 * 60 * 1000;
+volatile bool backlightState = true;
+Ticker buttonCheckTicker;
 
-void handleButtonPress() {
-  buttonPressed = true;
+void IRAM_ATTR handleButtonPress() {
+  backlightState = !backlightState;
+  digitalWrite(LCD_BACKLIGHT, backlightState ? HIGH : LOW);
+}
+
+void checkButton() {
+  static bool lastButtonState = HIGH;
+  bool currentButtonState = digitalRead(PUSH_BUTTON_PIN);
+  if (lastButtonState == HIGH && currentButtonState == LOW) {
+    handleButtonPress();
+  }
+  lastButtonState = currentButtonState;
 }
 
 const char* rootCACertificate = \
@@ -87,7 +99,6 @@ String printLocalTime() {
 
 void setup() {
   lcd.begin(16, 2);
-  lcd.clear();
   dht.begin();
   if (!bmp.begin()) {
     while (1) {}
@@ -96,7 +107,7 @@ void setup() {
   pinMode(GAS_DIN, INPUT);
   pinMode(GAS_AIN, INPUT);
   pinMode(PUSH_BUTTON_PIN, INPUT);
-  attachInterrupt(digitalPinToInterrupt(PUSH_BUTTON_PIN), handleButtonPress, FALLING);
+  // attachInterrupt(digitalPinToInterrupt(PUSH_BUTTON_PIN), handleButtonPress, FALLING); // is this needed?
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(LCD_BACKLIGHT, OUTPUT);
   digitalWrite(LCD_BACKLIGHT, HIGH);
@@ -121,6 +132,7 @@ void setup() {
 
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   printLocalTime();
+  buttonCheckTicker.attach(0.1, checkButton); // Check button every 100ms
 }
 
 void DisplaySensorData(int ad_value, float h, float t, float p) {
@@ -249,38 +261,20 @@ void sendData(int ad_value, float h, float t, float p) {
 }
 
 void loop() {
-  if (buttonPressed) {
-    // Handle button press
-    // For example, toggle LCD backlight
-    digitalWrite(LCD_BACKLIGHT, !digitalRead(LCD_BACKLIGHT));
-    
-    // Reset buttonPressed flag
-    buttonPressed = false;
-  }
-
   unsigned long currentTime = millis();
 
-  // Check if it's time to send data
   if (currentTime - lastDataSentTime >= sendDataInterval) {
-    // Update the last sent time
     lastDataSentTime = currentTime;
-
-    // Perform tasks to send data
     ad_value = analogRead(GAS_AIN);
     h = dht.readHumidity();
     t = dht.readTemperature();
     p = bmp.readPressure() / 100.0;
-
-    // Send sensor data
     sendData(ad_value, h, t, p);
   } else {
-    // If it's not time to send data, display sensor data
     ad_value = analogRead(GAS_AIN);
     h = dht.readHumidity();
     t = dht.readTemperature();
     p = bmp.readPressure() / 100.0;
-
-    // Display sensor data
     DisplaySensorData(ad_value, h, t, p);
   }
 }
