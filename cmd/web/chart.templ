@@ -3,10 +3,10 @@ package web
 templ Chart() {
 	@Base() {
 		<div id="chart" class="grid grid-cols-1 md:grid-cols-2 gap-0 justify-items-center">
-			<div id="chart-temperature" class="w-full"></div>
-			<div id="chart-humidity" class="w-full"></div>
-			<div id="chart-pressure" class="w-full"></div>
-			<div id="chart-airquality" class="w-full"></div>
+			<div id="chart-temperature"></div>
+			<div id="chart-humidity"></div>
+			<div id="chart-pressure"></div>
+			<div id="chart-airquality"></div>
 		</div>
 		<div id="last-timestamp-container" class="flex justify-between items-center w-full">
 			<div class="ml-4">
@@ -17,130 +17,191 @@ templ Chart() {
 			</div>
 		</div>
 		<script>
-            const margin = { top: 20, right: 40, bottom: 40, left: 40 };
-            const width = 750 - margin.left - margin.right;
-            const height = 450 - margin.top - margin.bottom;
+      const margin = { top: 20, right: 40, bottom: 40, left: 60 };
+      const width = 800 - margin.left - margin.right;
+      const height = 450 - margin.top - margin.bottom;
 
-            const createChart = (data, xField, yField, svgSelector, legendText) => {
-                const svg = d3.select(svgSelector).append("svg")
-                    .attr("width", "100%")
-                    .attr("height", height + margin.top + margin.bottom)
-                    .attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
-                    .attr("preserveAspectRatio", "xMidYMid meet")
-                    .append("g")
-                    .attr("transform", `translate(${margin.left},${margin.top})`);
-            
-                const parseTime = d3.isoParse;
-            
-                data.forEach(d => {
-                    d.timestamp = parseTime(d.timestamp);
-                    d[xField] = +d[xField];
-                });
-            
-                const x = d3.scaleTime()
-                    .domain(d3.extent(data, d => d.timestamp))
-                    .range([0, width]);
+      const createChart = (data, xField, yField, svgSelector, legendText) => {
+        const svg = d3.select(svgSelector).append("svg")
+          .attr("width", "100%")
+          .attr("height", height + margin.top + margin.bottom)
+          .attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+          .attr("preserveAspectRatio", "xMidYMid meet")
+          .append("g")
+          .attr("transform", `translate(${margin.left},${margin.top})`);
 
-                const y = d3.scaleLinear()
-                    .domain([d3.min(data, d => d[yField]), d3.max(data, d => d[yField])]).nice()
-                    .range([height, 0]);
-            
-                const xAxis = g => g
-                    .attr("transform", `translate(0,${height})`)
-                    .call(d3.axisBottom(x).ticks(Math.max(width / 80, 2)));
-            
-                const yAxis = g => g
-                    .call(d3.axisLeft(y));
-            
-                svg.selectAll("line.horizontalGrid")
-                    .data(y.ticks(Math.max(height / 80, 2)))
-                    .enter()
-                    .append("line")
-                    .attr("class", "horizontalGrid")
-                    .attr("x1", 0)
-                    .attr("x2", width)
-                    .attr("y1", d => y(d))
-                    .attr("y2", d => y(d))
-                    .attr("fill", "none")
-                    .attr("shape-rendering", "crispEdges")
-                    .attr("stroke", "lightgray")
-                    .attr("stroke-width", "1px");
+        const parseTime = d3.isoParse;
 
-                svg.selectAll("line.verticalGrid")
-                    .data(x.ticks(Math.max(width / 80, 2)))
-                    .enter()
-                    .append("line")
-                    .attr("class", "verticalGrid")
-                    .attr("x1", d => x(d))
-                    .attr("x2", d => x(d))
-                    .attr("y1", 0)
-                    .attr("y2", height)
-                    .attr("fill", "none")
-                    .attr("shape-rendering", "crispEdges")
-                    .attr("stroke", "lightgray")
-                    .attr("stroke-width", "1px");
-            
-                svg.append("path")
-                    .datum(data)
-                    .attr("fill", "none")
-                    .attr("stroke", "steelblue")
-                    .attr("stroke-width", 1.5)
-                    .attr("d", d3.line()
-                        .x(d => x(d.timestamp))
-                        .y(d => y(d[yField]))
-                    );
-            
-                svg.append("g")
-                    .call(xAxis);
-            
-                svg.append("g")
-                    .call(yAxis);
-            
-                const lastValue = data[0][yField];
-            
-                const legend = svg.append("g")
-                    .attr("class", "legend")
-                    .attr("transform", `translate(${width / 2},${margin.top})`);
+        data.forEach(d => {
+          d.timestamp = parseTime(d.timestamp);
+          d[xField] = +d[xField];
+        });
 
-                legend.append("rect")
-                    .attr("x", -70)
-                    .attr("y", -35)
-                    .attr("width", 12)
-                    .attr("height", 12)
-                    .attr("fill", "steelblue")
-                    .attr("stroke", "steelblue");
-                
-                legend.append("text")
-                    .attr("x", -50)
-                    .attr("y", -30)
-                    .attr("dy", ".35em")
-                    .style("text-anchor", "start")
-                    .text(`${legendText}: ${lastValue}`);
-            };
+        const x = d3.scaleTime()
+          .domain(d3.extent(data, d => d.timestamp))
+          .range([0, width]);
 
-            const fetchAndCreateChart = (url, xField, yField, svgSelector, legendText) => {
-                fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    createChart(data, xField, yField, svgSelector, legendText);
-                    const lastTimestamp = data[0].timestamp;
-                    document.getElementById('timestamp-value').textContent = new Date(lastTimestamp).toLocaleString();
-                })
-                .catch(error => {
-                    document.querySelector(svgSelector).innerHTML = "Error loading chart.";
-                    console.error('Error fetching chart data:', error);
-                });
-            };
+        const y = d3.scaleLinear()
+          //.domain([0, d3.max(data, d => d[yField])])
+          //.range([height, 0]);
+          .domain([d3.min(data, d => d[yField]), d3.max(data, d => d[yField])]).nice()
+          .range([height, 0]);
 
-            fetchAndCreateChart('/api/data?sensor=dht11', 'timestamp', 'temperature', '#chart-temperature', 'Temperature');
-            fetchAndCreateChart('/api/data?sensor=dht11', 'timestamp', 'humidity', '#chart-humidity', 'Humidity');
-            fetchAndCreateChart('/api/data?sensor=bmp180', 'timestamp', 'pressure', '#chart-pressure', 'Pressure');
-            fetchAndCreateChart('/api/data?sensor=mq135', 'timestamp', 'gas_level', '#chart-airquality', 'Air Quality');
-        </script>
+        const xAxis = g => g
+          .attr("class", "x-axis")
+          .attr("transform", `translate(0,${height})`)
+          .call(d3.axisBottom(x).ticks(Math.max(width / 80, 2)));
+
+        const yAxis = g => g
+          .attr("class", "y-axis")
+          .call(d3.axisLeft(y));
+
+        const clip = svg.append("defs").append("svg:clipPath")
+          .attr("id", "clip")
+          .append("svg:rect")
+          .attr("width", width)
+          .attr("height", height)
+          .attr("x", 0)
+          .attr("y", 0);
+
+        const brush = d3.brushX()
+          .extent([[0, 0], [width, height]])
+          .on("end", updateChart);
+
+        svg.append("g")
+          .attr("class", "brush")
+          .call(brush);
+
+        svg.selectAll("line.horizontalGrid")
+          .data(y.ticks(Math.max(height / 80, 2)))
+          .enter()
+          .append("line")
+          .attr("class", "horizontalGrid")
+          .attr("x1", 0)
+          .attr("x2", width)
+          .attr("y1", d => y(d))
+          .attr("y2", d => y(d))
+          .attr("fill", "none")
+          .attr("shape-rendering", "crispEdges")
+          .attr("stroke", "lightgray")
+          .attr("stroke-width", "1px");
+
+        svg.selectAll("line.verticalGrid")
+          .data(x.ticks(Math.max(width / 80, 2)))
+          .enter()
+          .append("line")
+          .attr("class", "verticalGrid")
+          .attr("x1", d => x(d))
+          .attr("x2", d => x(d))
+          .attr("y1", 0)
+          .attr("y2", height)
+          .attr("fill", "none")
+          .attr("shape-rendering", "crispEdges")
+          .attr("stroke", "lightgray")
+          .attr("stroke-width", "1px");
+
+        const line = svg.append("path")
+          .datum(data)
+          .attr("class", "line")
+          .attr("clip-path", "url(#clip)")
+          .attr("fill", "none")
+          .attr("stroke", "steelblue")
+          .attr("stroke-width", 1.5)
+          .attr("d", d3.line()
+            .curve(d3.curveBasis)
+            .x(d => x(d.timestamp))
+            .y(d => y(d[yField]))
+          );
+
+        let idleTimeout;
+        function idled() { idleTimeout = null; }
+
+        function updateChart(event) {
+          const extent = event.selection;
+          if (!extent) {
+            if (!idleTimeout) return idleTimeout = setTimeout(idled, 350);
+            x.domain(d3.extent(data, d => d.timestamp));
+          } else {
+            x.domain([x.invert(extent[0]), x.invert(extent[1])]);
+            svg.select(".brush").call(brush.move, null);
+          }
+
+          svg.select(".x-axis").transition().duration(1000).call(d3.axisBottom(x));
+          line
+            .datum(data)
+            .transition()
+            .duration(1000)
+            .attr("d", d3.line()
+              .curve(d3.curveBasis)
+              .x(d => x(d.timestamp))
+              .y(d => y(d[yField]))
+            );
+        }
+
+        svg.on("dblclick", function() {
+          x.domain(d3.extent(data, d => d.timestamp));
+          svg.select(".x-axis").transition().call(d3.axisBottom(x));
+          line
+            .datum(data)
+            .transition()
+            .attr("d", d3.line()
+              .curve(d3.curveBasis)
+              .x(d => x(d.timestamp))
+              .y(d => y(d[yField]))
+            );
+        });
+
+        svg.append("g")
+          .call(xAxis);
+
+        svg.append("g")
+          .call(yAxis);
+
+        const lastValue = data[0][yField];
+
+        const legend = svg.append("g")
+          .attr("class", "legend")
+          .attr("transform", `translate(${width / 2},${margin.top})`);
+
+        legend.append("rect")
+          .attr("x", -70)
+          .attr("y", -35)
+          .attr("width", 12)
+          .attr("height", 12)
+          .attr("fill", "steelblue")
+          .attr("stroke", "steelblue");
+
+        legend.append("text")
+          .attr("x", -50)
+          .attr("y", -30)
+          .attr("dy", ".35em")
+          .style("text-anchor", "start")
+          .text(`${legendText}: ${lastValue}`);
+      };
+
+      const fetchAndCreateChart = (url, xField, yField, svgSelector, legendText) => {
+        fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          createChart(data, xField, yField, svgSelector, legendText);
+          const lastTimestamp = data[0].timestamp;
+          document.getElementById('timestamp-value').textContent = new Date(lastTimestamp).toLocaleString();
+        })
+        .catch(error => {
+          document.querySelector(svgSelector).innerHTML = "Error loading chart.";
+          console.error('Error fetching chart data:', error);
+        });
+      };
+
+      fetchAndCreateChart('/api/data?sensor=dht11', 'timestamp', 'temperature', '#chart-temperature', 'Temperature');
+      fetchAndCreateChart('/api/data?sensor=dht11', 'timestamp', 'humidity', '#chart-humidity', 'Humidity');
+      fetchAndCreateChart('/api/data?sensor=bmp180', 'timestamp', 'pressure', '#chart-pressure', 'Pressure');
+      fetchAndCreateChart('/api/data?sensor=mq135', 'timestamp', 'gas_level', '#chart-airquality', 'Air Quality');
+    </script>
 	}
 }
