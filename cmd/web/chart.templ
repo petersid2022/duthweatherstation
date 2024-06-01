@@ -2,22 +2,24 @@ package web
 
 templ Chart() {
 	@Base() {
+		<nav id="navbar" class="sticky top-0 z-50 flex flex-col sm:flex-row justify-between items-center bg-gray-100 text-gray-800 px-4 py-2 mb-4 shadow-md">
+			<h1 class="text-xl font-bold sm:mb-0 mb-2">DUTh Weather Station</h1>
+			<div id="last-timestamp" class="text-gray-600 sm:pl-4">
+				<span>Last updated at: </span><span id="timestamp-value"></span>
+			</div>
+		</nav>
 		<div id="chart" class="grid grid-cols-1 md:grid-cols-2 gap-0 justify-items-center">
 			<div id="chart-temperature"></div>
 			<div id="chart-humidity"></div>
 			<div id="chart-pressure"></div>
 			<div id="chart-airquality"></div>
 		</div>
-		<div id="last-timestamp-container" class="flex justify-between items-center w-full">
-			<div class="ml-4">
-				<p>&copy; 2024 Peter Sideris and Fotis Mitsis</p>
-			</div>
-			<div id="last-timestamp" class="mr-4">
-				<span>Last updated at: </span><span id="timestamp-value"></span>
-			</div>
+		<div class="text-center">
+			<p class="text-gray-600">&copy; 2024 Peter Sideris and Fotis Mitsis</p>
+			<p class="text-gray-600">This website is open <a href="https://github.com/petersid2022/duthweatherstation" class="text-blue-500 underline hover:text-blue-700" target="_blank" rel="noopener noreferrer">source</a></p>
 		</div>
 		<script>
-      const margin = { top: 20, right: 40, bottom: 40, left: 60 };
+      const margin = { top: 30, right: 40, bottom: 40, left: 60 };
       const width = 800 - margin.left - margin.right;
       const height = 450 - margin.top - margin.bottom;
 
@@ -73,7 +75,7 @@ templ Chart() {
           .call(brush);
 
         svg.selectAll("line.horizontalGrid")
-          .data(y.ticks(Math.max(height / 80, 2)))
+          .data(y.ticks(Math.max(height / 45, 2)))
           .enter()
           .append("line")
           .attr("class", "horizontalGrid")
@@ -165,7 +167,7 @@ templ Chart() {
 
         legend.append("rect")
           .attr("x", -70)
-          .attr("y", -35)
+          .attr("y", -50)
           .attr("width", 12)
           .attr("height", 12)
           .attr("fill", "steelblue")
@@ -173,7 +175,7 @@ templ Chart() {
 
         legend.append("text")
           .attr("x", -50)
-          .attr("y", -30)
+          .attr("y", -45)
           .attr("dy", ".35em")
           .style("text-anchor", "start")
           .text(`${legendText}: ${lastValue}`);
