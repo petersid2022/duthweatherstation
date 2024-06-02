@@ -43,10 +43,11 @@ templ Chart() {
           .domain(d3.extent(data, d => d.timestamp))
           .range([0, width]);
 
+        const yExtent = d3.extent(data, d => d[yField]);
+        const yMargin = (yExtent[1] - yExtent[0]) * 0.05;
         const y = d3.scaleLinear()
           //.domain([0, d3.max(data, d => d[yField])])
-          //.range([height, 0]);
-          .domain([d3.min(data, d => d[yField] * 0.9999), d3.max(data, d => d[yField]) * 1.0001]).nice()
+          .domain([yExtent[0] - yMargin, yExtent[1] + yMargin]).nice()
           .range([height, 0]);
 
         const xAxis = g => g
