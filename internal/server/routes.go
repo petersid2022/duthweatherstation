@@ -17,7 +17,6 @@ func (s *Server) RegisterRoutes() http.Handler {
 	mux.Handle("/", templ.Handler(web.Chart()))
 	mux.HandleFunc("/api/data", s.ChartDataHandler)
 	mux.HandleFunc("/api/add", s.AddSensorDataHandler)
-	mux.HandleFunc("/favicon.ico", s.FaviconHandler)
 
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
@@ -28,10 +27,6 @@ func (s *Server) RegisterRoutes() http.Handler {
 	})
 
 	return c.Handler(mux)
-}
-
-func (s *Server) FaviconHandler(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "favicon.ico")
 }
 
 func (s *Server) AddSensorDataHandler(w http.ResponseWriter, r *http.Request) {
