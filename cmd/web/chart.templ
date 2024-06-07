@@ -223,8 +223,12 @@ templ Chart() {
       const filterDataByDate = (data, startDate, endDate) => {
         const parseTime = d3.isoParse;
         return data.filter(d => {
-          const date = parseTime(d.timestamp);
-          return date >= startDate && date <= endDate;
+         const date = parseTime(d.timestamp);
+          if (startDate.getTime() === endDate.getTime()) {
+            return date.toDateString() === startDate.toDateString();
+          } else {
+            return date >= startDate && date <= endDate;
+          }
         });
       };
 
