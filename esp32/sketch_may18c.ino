@@ -1,3 +1,4 @@
+#include <WiFi.h>
 #include "DHT.h"
 #include "time.h"
 #include <LiquidCrystal.h>
@@ -15,28 +16,47 @@
 #define LCD_BACKLIGHT A4
 #define PUSH_BUTTON_PIN 1
 
-LiquidCrystal lcd(26, 2, 17, 14, 13, 25); // ( RS, EN, D4, D5, D6, D7 )
-DHT dht(DHTPIN, DHTTYPE);
-Adafruit_BMP085 bmp;
-
-// const char *ssid = "POCO X3 Pro";
-// const char *password = "12345678910";
-const char *ssid = "tzampa";
-const char *password = "geiasoupetro";
-const char *serverName = "https://duthweatherstation.fly.dev/api/add";
-const char *ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = 7200;
-const int   daylightOffset_sec = 3600;
-int ad_value;
+int ad_value, gas;
 float h, t, p;
+const char *ssid = "esp32-wifi";
+const char *password = "123456789";
+const char *serverName = "https://duthweather.azurewebsites.net/api/add";
+const char *ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 7200;
+const int daylightOffset_sec = 3600;
 unsigned long lastDataSentTime = 0;
 const unsigned long sendDataInterval = 2 * 60 * 1000;
-volatile bool backlightState = true;
+volatile bool backlightState = false;
+
+Ticker gasSensorTicker;
 Ticker buttonCheckTicker;
+LiquidCrystal lcd(26, 2, 17, 14, 13, 25);  // ( RS, EN, D4, D5, D6, D7 )
+DHT dht(DHTPIN, DHTTYPE);
+Adafruit_BMP085 bmp;
 
 void IRAM_ATTR handleButtonPress() {
   backlightState = !backlightState;
   digitalWrite(LCD_BACKLIGHT, backlightState ? HIGH : LOW);
+}
+
+void gasSensorCheck() {
+  ad_value = analogRead(GAS_AIN);
+  if (ad_value >= 2500) {
+    while (ad_value >= 2500) {
+      lcd.clear();
+      delay(50);
+      lcd.setCursor(0, 0);
+      lcd.print("DANGER! Gas");
+      lcd.setCursor(0, 1);
+      lcd.print("leakage detected");
+      digitalWrite(BUZZER_PIN, HIGH);
+      delay(100);
+      digitalWrite(BUZZER_PIN, LOW);
+      delay(100);
+      ad_value = analogRead(GAS_AIN);
+      delay(50);
+    }
+  }
 }
 
 void checkButton() {
@@ -48,52 +68,38 @@ void checkButton() {
   lastButtonState = currentButtonState;
 }
 
-const char* rootCACertificate = \
-                                "-----BEGIN CERTIFICATE-----\n" \
-                                "MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw\n" \
-                                "TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh\n" \
-                                "cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4\n" \
-                                "WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu\n" \
-                                "ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY\n" \
-                                "MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc\n" \
-                                "h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+\n" \
-                                "0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U\n" \
-                                "A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW\n" \
-                                "T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH\n" \
-                                "B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC\n" \
-                                "B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv\n" \
-                                "KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STJEadao0xAH0ahmbWn\n" \
-                                "OlFuhjuefXKnEgV4We0+UXgVCwOPjdAvBbI+e0ocS3MFEvzG6uBQE3xDk3SzynTn\n" \
-                                "jh8BCNAw1FtxNrQHusEwMFxIt4I7mKZ9YIqioymCzLq9gwQbooMDQaHWBfEbwrbw\n" \
-                                "qHyGO0aoSCqI3Haadr8faqU9GY/rOPNk3sgrDQoo//fb4hVC1CLQJ13hef4Y53CI\n" \
-                                "rU7m2Ys6xt0nUW7/vGT1M0NPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV\n" \
-                                "HRMBAf8EBTADAQH/MB0GA1UdDgQWBBR5tFnme7bl5AFzgAiIyBpY9umbbjANBgkq\n" \
-                                "hkiG9w0BAQsFAAOCAgEAVR9YqbyyqFDQDLHYGmkgJykIrGF1XIpu+ILlaS/V9lZL\n" \
-                                "ubhzEFnTIZd+50xx+7LSYK05qAvqFyFWhfFQDlnrzuBZ6brJFe+GnY+EgPbk6ZGQ\n" \
-                                "3BebYhtF8GaV0nxvwuo77x/Py9auJ/GpsMiu/X1+mvoiBOv/2X/qkSsisRcOj/KK\n" \
-                                "NFtY2PwByVS5uCbMiogziUwthDyC3+6WVwW6LLv3xLfHTjuCvjHIInNzktHCgKQ5\n" \
-                                "ORAzI4JMPJ+GslWYHb4phowim57iaztXOoJwTdwJx4nLCgdNbOhdjsnvzqvHu7Ur\n" \
-                                "TkXWStAmzOVyyghqpZXjFaH3pO3JLF+l+/+sKAIuvtd7u+Nxe5AW0wdeRlN8NwdC\n" \
-                                "jNPElpzVmbUq4JUagEiuTDkHzsxHpFKVK7q4+63SM1N95R1NbdWhscdCb+ZAJzVc\n" \
-                                "oyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq\n" \
-                                "4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA\n" \
-                                "mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d\n" \
-                                "emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=\n" \
-                                "-----END CERTIFICATE-----\n";
+const char *rootCACertificate =
+  "-----BEGIN CERTIFICATE-----\n"
+  "MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh\n"
+  "MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\n"
+  "d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH\n"
+  "MjAeFw0xMzA4MDExMjAwMDBaFw0zODAxMTUxMjAwMDBaMGExCzAJBgNVBAYTAlVT\n"
+  "MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j\n"
+  "b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IEcyMIIBIjANBgkqhkiG\n"
+  "9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuzfNNNx7a8myaJCtSnX/RrohCgiN9RlUyfuI\n"
+  "2/Ou8jqJkTx65qsGGmvPrC3oXgkkRLpimn7Wo6h+4FR1IAWsULecYxpsMNzaHxmx\n"
+  "1x7e/dfgy5SDN67sH0NO3Xss0r0upS/kqbitOtSZpLYl6ZtrAGCSYP9PIUkY92eQ\n"
+  "q2EGnI/yuum06ZIya7XzV+hdG82MHauVBJVJ8zUtluNJbd134/tJS7SsVQepj5Wz\n"
+  "tCO7TG1F8PapspUwtP1MVYwnSlcUfIKdzXOS0xZKBgyMUNGPHgm+F6HmIcr9g+UQ\n"
+  "vIOlCsRnKPZzFBQ9RnbDhxSJITRNrw9FDKZJobq7nMWxM4MphQIDAQABo0IwQDAP\n"
+  "BgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBhjAdBgNVHQ4EFgQUTiJUIBiV\n"
+  "5uNu5g/6+rkS7QYXjzkwDQYJKoZIhvcNAQELBQADggEBAGBnKJRvDkhj6zHd6mcY\n"
+  "1Yl9PMWLSn/pvtsrF9+wX3N3KjITOYFnQoQj8kVnNeyIv/iPsGEMNKSuIEyExtv4\n"
+  "NeF22d+mQrvHRAiGfzZ0JFrabA0UWTW98kndth/Jsw1HKj2ZL7tcu7XUIOGZX1NG\n"
+  "Fdtom/DzMNU+MeKNhJ7jitralj41E6Vf8PlwUHBHQRFXGU7Aj64GxJUTFy8bJZ91\n"
+  "8rGOmaFvE7FBcf6IKshPECBV1/MUReXgRPTqh5Uykw7+U0b6LJ3/iyK5S9kJRaTe\n"
+  "pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl\n"
+  "MrY=\n"
+  "-----END CERTIFICATE-----\n";
 
 String printLocalTime() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
     return "";
   }
-
-  // Convert struct tm to time_t
   time_t timestamp = mktime(&timeinfo);
-
-  // Format the timestamp according to RFC 3339
   char formattedTime[30];
   strftime(formattedTime, sizeof(formattedTime), "%Y-%m-%dT%H:%M:%SZ", &timeinfo);
-
   return String(formattedTime);
 }
 
@@ -107,63 +113,62 @@ void setup() {
   pinMode(GAS_DIN, INPUT);
   pinMode(GAS_AIN, INPUT);
   pinMode(PUSH_BUTTON_PIN, INPUT);
-  // attachInterrupt(digitalPinToInterrupt(PUSH_BUTTON_PIN), handleButtonPress, FALLING); // is this needed?
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(LCD_BACKLIGHT, OUTPUT);
   digitalWrite(LCD_BACKLIGHT, HIGH);
 
-  // Connect to WiFi
-  WiFi.begin(ssid, password);
-
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Connecting to");
   lcd.setCursor(0, 1);
   lcd.print("wifi");
+  WiFi.begin(ssid, password);
 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
+  unsigned long startAttemptTime = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
+    for (int i = 0; i < 3; i++) {
+      delay(500);
+      lcd.print(".");
+    }
+    delay(500);
+    lcd.setCursor(0, 1);
+    lcd.print("wifi   ");
+    delay(500);
+    lcd.setCursor(0, 1);
+    lcd.print("wifi");
   }
 
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Connected to:");
-  lcd.setCursor(0, 1);
-  lcd.print(ssid);
+  if (WiFi.status() == WL_CONNECTED) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Connected to:");
+    lcd.setCursor(0, 1);
+    lcd.print(ssid);
 
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  printLocalTime();
-  buttonCheckTicker.attach(0.1, checkButton); // Check button every 100ms
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    printLocalTime();
+  } else {
+    lcd.clear();
+    lcd.home();
+    lcd.print("Couldn't connect");
+    lcd.setCursor(0, 1);
+    lcd.print("to wifi");
+    delay(2500);
+    lcd.clear();
+  }
+
+  buttonCheckTicker.attach(0.05, checkButton);
+  gasSensorTicker.attach(0.5, gasSensorCheck);
 }
 
 void DisplaySensorData(int ad_value, float h, float t, float p) {
-  // Clear the LCD
-  lcd.clear();
-
-  if (ad_value >= 2000) {
-    while (ad_value >= 2000) {
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("DANGER! Gas");
-      lcd.setCursor(0, 1);
-      lcd.print("leakage detected");
-      digitalWrite(BUZZER_PIN, HIGH);
-      delay(100);
-      digitalWrite(BUZZER_PIN, LOW);
-      delay(100);
-
-      // Update ad_value within the loop
-      ad_value = analogRead(GAS_AIN);
-    }
-  }
-
-  // Display sensor readings
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Humidity: ");
   lcd.setCursor(0, 1);
   lcd.print(h);
   lcd.print(" %");
-  delay(2000);
+  delay(2500);
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -171,14 +176,15 @@ void DisplaySensorData(int ad_value, float h, float t, float p) {
   lcd.setCursor(0, 1);
   lcd.print(t);
   lcd.print(" C");
-  delay(2000);
+  delay(2500);
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Gas sensor: ");
   lcd.setCursor(0, 1);
   lcd.print(ad_value);
-  delay(2000);
+  lcd.print(" ppm");
+  delay(2500);
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -186,77 +192,77 @@ void DisplaySensorData(int ad_value, float h, float t, float p) {
   lcd.setCursor(0, 1);
   lcd.print(p);
   lcd.print(" hPa");
-  delay(2000);
+  delay(2500);
+}
+
+String createPayload(const String &sensorName, const String &timestamp, const String &data) {
+  return "{\"SensorName\":\"" + sensorName + "\",\"SensorData\":{\"timestamp\":\"" + timestamp + "\"," + data + "}}";
 }
 
 void sendData(int ad_value, float h, float t, float p) {
-  WiFiClientSecure *client = new WiFiClientSecure;
-  if (client) {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Uploading data...");
+  const int maxRetries = 3;
+  int attempts = 0;
+  bool success = false;
 
-    client->setCACert(rootCACertificate);
-
-    HTTPClient https;
-
-    if (https.begin(*client, serverName)) {
-
-      // Create JSON payload for DHT11
-      String payload_dht11 = "{";
-      payload_dht11 += "\"SensorName\":\"dht11\",";
-      payload_dht11 += "\"SensorData\":{";
-      payload_dht11 += "\"timestamp\":\"" + printLocalTime() + "\",";
-      payload_dht11 += "\"temperature\":" + String(t) + ",";
-      payload_dht11 += "\"humidity\":" + String(h);
-      payload_dht11 += "}}";
-
-      int httpCode = https.POST(payload_dht11);
-
-      if (httpCode > 0) {
-        if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
-          String payload_dht11 = https.getString();
-        }
-      }
-
-      // Create JSON payload for BMP180
-      String payload_bmp180 = "{";
-      payload_bmp180 += "\"SensorName\":\"bmp180\",";
-      payload_bmp180 += "\"SensorData\":{";
-      payload_bmp180 += "\"timestamp\":\"" + printLocalTime() + "\",";
-      payload_bmp180 += "\"pressure\":" + String(p);
-      payload_bmp180 += "}}";
-
-      httpCode = https.POST(payload_bmp180);
-
-      if (httpCode > 0) {
-        if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
-          String payload_bmp180 = https.getString();
-        }
-      }
-
-      // Create JSON payload for MQ135
-      String payload_mq135 = "{";
-      payload_mq135 += "\"SensorName\":\"mq135\",";
-      payload_mq135 += "\"SensorData\":{";
-      payload_mq135 += "\"timestamp\":\"" + printLocalTime() + "\",";
-      payload_mq135 += "\"gas_level\":" + String(ad_value);
-      payload_mq135 += "}}";
-
-      httpCode = https.POST(payload_mq135);
-
-      if (httpCode > 0) {
-        if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
-          String payload_mq135 = https.getString();
-        }
-      }
-
-      https.end();
-      lcd.setCursor(0, 1);
-      lcd.print("Done!");
-      delay(1000);
+  while (attempts < maxRetries && !success) {
+    WiFiClientSecure *client = new WiFiClientSecure;
+    if (client) {
       lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Uploading data");
+      delay(500);
+
+      client->setCACert(rootCACertificate);
+
+      HTTPClient https;
+      if (https.begin(*client, serverName)) {
+        String timestamp = printLocalTime();
+        int httpResponseCode;
+
+        String payload_dht11 = createPayload("dht11", timestamp, "\"humidity\":" + String(h));
+        httpResponseCode = https.POST(payload_dht11);
+
+        if (httpResponseCode > 0) {
+          String payload_bmp180 = createPayload("bmp180", timestamp, "\"temperature\":" + String(t) + ",\"pressure\":" + String(p));
+          httpResponseCode = https.POST(payload_bmp180);
+
+          if (httpResponseCode > 0) {
+            String payload_mq135 = createPayload("mq135", timestamp, "\"gas_level\":" + String(ad_value));
+            httpResponseCode = https.POST(payload_mq135);
+          }
+        }
+
+        https.end();
+
+        if (httpResponseCode > 0) {
+          success = true;
+          lcd.setCursor(0, 1);
+          lcd.print("Done!");
+          delay(2000);
+          lcd.clear();
+        } else {
+          attempts++;
+          lcd.setCursor(0, 1);
+          lcd.print("Retrying...");
+          delay(2500);
+          lcd.clear();
+        }
+      } else {
+        lcd.setCursor(0, 1);
+        lcd.print("Connection failed");
+        delay(2500);
+        lcd.clear();
+        attempts++;
+      }
     }
+    delete client;
+  }
+
+  if (!success) {
+    lcd.setCursor(0, 1);
+    lcd.print("Failed after retries");
+    delay(2000);
+    lcd.clear();
   }
 }
 
@@ -265,15 +271,23 @@ void loop() {
 
   if (currentTime - lastDataSentTime >= sendDataInterval) {
     lastDataSentTime = currentTime;
-    ad_value = analogRead(GAS_AIN);
+    // ad_value = analogRead(GAS_AIN);
+    gas = analogRead(GAS_AIN);
+    ad_value = gas - 120;
+    ad_value = map(ad_value, 0, 1024, 400, 5000);
     h = dht.readHumidity();
-    t = dht.readTemperature();
+    t = bmp.readTemperature();
     p = bmp.readPressure() / 100.0;
-    sendData(ad_value, h, t, p);
+    if (WiFi.status() == WL_CONNECTED) {
+      sendData(ad_value, h, t, p);
+    }
   } else {
-    ad_value = analogRead(GAS_AIN);
+    // ad_value = analogRead(GAS_AIN);
+    gas = analogRead(GAS_AIN);
+    ad_value = gas - 120;
+    ad_value = map(ad_value, 0, 1024, 400, 5000);
     h = dht.readHumidity();
-    t = dht.readTemperature();
+    t = bmp.readTemperature();
     p = bmp.readPressure() / 100.0;
     DisplaySensorData(ad_value, h, t, p);
   }
