@@ -34,8 +34,8 @@ templ Chart() {
 			<p class="text-gray-600">This website is open <a href="https://github.com/petersid2022/duthweatherstation" class="text-blue-500 underline hover:text-blue-700" target="_blank" rel="noopener noreferrer">source</a></p>
 		</div>
 		<script>
-      const margin = { top: 30, right: 40, bottom: 40, left: 60 };
-      const width = 800 - margin.left - margin.right;
+      const margin = { top: 30, right: 40, bottom: 40, left: 80 };
+      const width = 880 - margin.left - margin.right;
       const height = 450 - margin.top - margin.bottom;
       let allData = {};
 
@@ -62,10 +62,10 @@ templ Chart() {
           .range([0, width]);
 
         let xAxisTicks = x.ticks(Math.max(width / 80, 2));
-        const maxXValue = x.domain()[1];
-        if (!xAxisTicks.includes(maxXValue)) {
-          xAxisTicks = xAxisTicks.concat(maxXValue);
-        }
+        //const maxXValue = x.domain()[1];
+        //if (!xAxisTicks.includes(maxXValue)) {
+        //  xAxisTicks = xAxisTicks.concat(maxXValue);
+        //}
 
         const yExtent = d3.extent(data, d => d[yField]);
         const yMargin = (yExtent[1] - yExtent[0]) * 0.05;
@@ -291,8 +291,8 @@ templ Chart() {
         fetchData('/api/data?sensor=bmp180'),
         fetchData('/api/data?sensor=mq135')
       ]).then(([dht11Data, bmp180Data, mq135Data]) => {
-        allData.temperature = dht11Data;
         allData.humidity = dht11Data;
+        allData.temperature = bmp180Data;
         allData.pressure = bmp180Data;
         allData.airQuality = mq135Data;
             
