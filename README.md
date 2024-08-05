@@ -11,6 +11,9 @@ Included in this repo:
 
 You can view the live production app on: https://duthweatherstation.azurewebsites.net/
 
+![PXL_20240612_170053991](https://github.com/user-attachments/assets/9658f100-8c8f-493f-9273-241401b907ba)
+![PXL_20240612_170105711](https://github.com/user-attachments/assets/78f0174d-7ca2-4f56-a04f-34e039f4a54b)
+
 ## License
 This project is licensed under the MIT License.
 
