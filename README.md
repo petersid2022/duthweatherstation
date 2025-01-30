@@ -8,11 +8,13 @@ Included in this repo:
 * Our Go/TEMPL frontend app
 * The final board schematic, designed using KiCad
 * Various 3D renderings of the PCB generated using KiCad
+* The paper that describes in detail our implementation
 
-You can view the live production app on: https://duthweatherstation.azurewebsites.net/
+~~You can view the live production app on: https://duthweatherstation.azurewebsites.net/~~
 
 ![PXL_20240612_170053991](https://github.com/user-attachments/assets/9658f100-8c8f-493f-9273-241401b907ba)
 ![PXL_20240612_170105711](https://github.com/user-attachments/assets/78f0174d-7ca2-4f56-a04f-34e039f4a54b)
+![image](https://github.com/user-attachments/assets/43d6b4a0-cb35-49cb-b132-8db5b7945403)
 
 ## License
 This project is licensed under the MIT License.
